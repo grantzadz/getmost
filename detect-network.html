@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Network Info Demo</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
+    .card { border: 1px solid #ddd; padding: 16px; border-radius: 8px; max-width: 680px; }
+    .label { font-weight: 600; color: #333; }
+    .value { margin-bottom: 12px; color: #111; }
+    button { padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+    small { color: #666; display:block; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Connection & Network Info (demo)</h2>
+    <div id="info">
+      <div class="label">Connection type:</div>
+      <div id="connType" class="value">—</div>
+
+      <div class="label">Effective connection:</div>
+      <div id="effType" class="value">—</div>
+
+      <div class="label">Downlink (Mbps):</div>
+      <div id="downlink" class="value">—</div>
+
+      <div class="label">ISP / Organization (from IP lookup):</div>
+      <div id="isp" class="value">—</div>
+
+      <div class="label">IP (public):</div>
+      <div id="ip" class="value">—</div>
+
+      <button id="btnLookup">Show my network info (consent)</button>
+      <small>We will call a public IP lookup (ipapi.co) to get the ISP/org. This demo does not store your data.</small>
+    </div>
+  </div>
+
+  <script>
+    // Helper to update UI
+    function setEl(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text ?? '—';
+    }
+
+    // 1) Use navigator.connection (Network Information API) when available
+    function updateConnectionInfo() {
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (!conn) {
+        setEl('connType', 'Not supported by this browser');
+        setEl('effType', 'Not supported');
+        setEl('downlink', 'Not supported');
+        return;
+      }
+      setEl('connType', conn.type ?? 'unknown');                 // e.g., 'cellular', 'wifi', 'ethernet', 'unknown'
+      setEl('effType', conn.effectiveType ?? 'unknown');        // e.g., '4g', '3g', '2g', 'slow-2g'
+      setEl('downlink', conn.downlink != null ? conn.downlink : 'unknown'); // Mbps estimate
+      // Optionally listen for changes:
+      // conn.addEventListener('change', updateConnectionInfo);
+    }
+
+    // 2) Ask user for consent then fetch IP + ISP info from a public API
+    async function fetchIpInfo() {
+      try {
+        // NOTE: ipapi.co is used here as an example. You can switch providers (ipinfo.io, ipapi.com) if you have a paid token.
+        // ipapi.co JSON endpoint: https://ipapi.co/json/
+        const resp = await fetch('https://ipapi.co/json/');
+        if (!resp.ok) throw new Error('IP lookup failed: ' + resp.status);
+        const data = await resp.json();
+        // ipapi returns fields like ip, org (sometimes), and city, region, country_name
+        setEl('ip', data.ip ?? 'unknown');
+        // ipapi returns "org" or "org" might be absent; some providers return "org" or "asn_org"
+        const ispField = data.org || data.org_name || data.hostname || data.company || data.org || 'unknown';
+        setEl('isp', ispField);
+      } catch (err) {
+        console.warn('IP lookup error', err);
+        setEl('isp', 'Lookup failed or blocked by CORS');
+        setEl('ip', 'unknown');
+      }
+    }
+
+    // Wire up the button with explicit user consent
+    document.getElementById('btnLookup').addEventListener('click', async (e) => {
+      // Clear previous values while fetching
+      setEl('isp', 'Fetching…');
+      setEl('ip', 'Fetching…');
+      // In real sites: show a clear consent modal describing the request and what will be done with the data.
+      // Here we assume button click is consent.
+      await fetchIpInfo();
+    });
+
+    // Initialize connection info immediately (no network probe needed)
+    updateConnectionInfo();
+  </script>
+</body>
+</html>
